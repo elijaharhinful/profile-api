@@ -25,6 +25,10 @@ app.use((_req, res, next) => {
 // Routes
 app.use("/api/profiles", profileRoutes);
 
+app.get("/", (_req, res) => {
+  res.send("Welcome to the Profile API");
+});
+
 // 404 and error handlers
 app.use(notFound);
 app.use(errorHandler);
