@@ -1,31 +1,9 @@
-interface GenderizeResponse {
-  count: number;
-  name: string;
-  gender: string | null;
-  probability: number;
-}
-
-interface AgifyResponse {
-  count: number;
-  name: string;
-  age: number | null;
-}
-
-interface NationalizeResponse {
-  count: number;
-  name: string;
-  country: { country_id: string; probability: number }[];
-}
-
-export interface EnrichedData {
-  gender: string;
-  gender_probability: number;
-  sample_size: number;
-  age: number;
-  age_group: string;
-  country_id: string;
-  country_probability: number;
-}
+import {
+  GenderizeResponse,
+  AgifyResponse,
+  NationalizeResponse,
+  EnrichedData,
+} from "../interfaces/interfaces";
 
 function getAgeGroup(age: number): string {
   if (age <= 12) return "child";
@@ -52,7 +30,7 @@ export async function enrichName(name: string): Promise<EnrichedData> {
 
   try {
     genderData = await fetchJson<GenderizeResponse>(
-      `https://api.genderize.io?name=${encodedName}`
+      `https://api.genderize.io?name=${encodedName}`,
     );
   } catch {
     throw { statusCode: 502, api: "Genderize" };
@@ -60,7 +38,7 @@ export async function enrichName(name: string): Promise<EnrichedData> {
 
   try {
     agifyData = await fetchJson<AgifyResponse>(
-      `https://api.agify.io?name=${encodedName}`
+      `https://api.agify.io?name=${encodedName}`,
     );
   } catch {
     throw { statusCode: 502, api: "Agify" };
@@ -68,7 +46,7 @@ export async function enrichName(name: string): Promise<EnrichedData> {
 
   try {
     nationalizeData = await fetchJson<NationalizeResponse>(
-      `https://api.nationalize.io?name=${encodedName}`
+      `https://api.nationalize.io?name=${encodedName}`,
     );
   } catch {
     throw { statusCode: 502, api: "Nationalize" };
@@ -93,7 +71,7 @@ export async function enrichName(name: string): Promise<EnrichedData> {
 
   // Pick country with highest probability
   const topCountry = nationalizeData.country.reduce((a, b) =>
-    a.probability > b.probability ? a : b
+    a.probability > b.probability ? a : b,
   );
 
   return {
