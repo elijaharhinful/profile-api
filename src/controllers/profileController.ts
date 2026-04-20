@@ -1,10 +1,13 @@
 import { Request, Response } from "express";
 import { uuidv7 } from "uuidv7";
-import { Profile } from "../models/Profile";
 import { enrichName } from "../utils/externalApis";
+import { prisma } from "../lib/prisma";
 
 // POST /api/profiles
-export async function createProfile(req: Request, res: Response): Promise<void> {
+export async function createProfile(
+  req: Request,
+  res: Response,
+): Promise<void> {
   const { name } = req.body;
 
   // Validate input
@@ -20,12 +23,14 @@ export async function createProfile(req: Request, res: Response): Promise<void> 
   const normalizedName = name.trim().toLowerCase();
 
   // Check for existing profile (idempotency)
-  const existing = await Profile.findOne({ name: normalizedName });
+  const existing = await prisma.profile.findUnique({
+    where: { name: normalizedName },
+  });
   if (existing) {
     res.status(200).json({
       status: "success",
       message: "Profile already exists",
-      data: existing.toJSON(),
+      data: existing,
     });
     return;
   }
@@ -48,36 +53,39 @@ export async function createProfile(req: Request, res: Response): Promise<void> 
   }
 
   // Create and save profile
-  const profile = new Profile({
-    id: uuidv7(),
-    name: normalizedName,
-    ...enriched,
-    created_at: new Date(),
+  const profile = await prisma.profile.create({
+    data: {
+      id: uuidv7(),
+      name: normalizedName,
+      ...enriched,
+      created_at: new Date(),
+    },
   });
-
-  await profile.save();
 
   res.status(201).json({
     status: "success",
-    data: profile.toJSON(),
+    data: profile,
   });
 }
 
 // GET /api/profiles/:id
 export async function getProfile(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
-  const profile = await Profile.findOne({ id });
+  const profile = await prisma.profile.findUnique({ where: { id } });
   if (!profile) {
     res.status(404).json({ status: "error", message: "Profile not found" });
     return;
   }
 
-  res.status(200).json({ status: "success", data: profile.toJSON() });
+  res.status(200).json({ status: "success", data: profile });
 }
 
 // GET /api/profiles
-export async function getAllProfiles(req: Request, res: Response): Promise<void> {
+export async function getAllProfiles(
+  req: Request,
+  res: Response,
+): Promise<void> {
   const { gender, country_id, age_group } = req.query;
 
   // Build filter object — query params are case-insensitive
@@ -93,17 +101,16 @@ export async function getAllProfiles(req: Request, res: Response): Promise<void>
     filter.age_group = age_group.toLowerCase();
   }
 
-  const profiles = await Profile.find(filter);
+  const profiles = await prisma.profile.findMany({ where: filter });
 
   const data = profiles.map((p) => {
-    const json = p.toJSON();
     return {
-      id: json.id,
-      name: json.name,
-      gender: json.gender,
-      age: json.age,
-      age_group: json.age_group,
-      country_id: json.country_id,
+      id: p.id,
+      name: p.name,
+      gender: p.gender,
+      age: p.age,
+      age_group: p.age_group,
+      country_id: p.country_id,
     };
   });
 
@@ -115,11 +122,14 @@ export async function getAllProfiles(req: Request, res: Response): Promise<void>
 }
 
 // DELETE /api/profiles/:id
-export async function deleteProfile(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
+export async function deleteProfile(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const id = req.params.id as string;
 
-  const result = await Profile.deleteOne({ id });
-  if (result.deletedCount === 0) {
+  const result = await prisma.profile.deleteMany({ where: { id } });
+  if (result.count === 0) {
     res.status(404).json({ status: "error", message: "Profile not found" });
     return;
   }
