@@ -39,3 +39,11 @@ export interface IProfile {
   country_probability: number;
   created_at: Date;
 }
+
+export interface NLPFilter {
+  gender?: string;
+  age_group?: string;
+  country_id?: string;
+  min_age?: number;
+  max_age?: number;
+}
