@@ -68,14 +68,12 @@ export function parseNaturalLanguageQuery(
   }
 
   // Country
-  const countryMatch = lowerQuery.match(/\bfrom\s([a-z\s]+)(?:$|\s)/);
+  const countryMatch = lowerQuery.match(/(?:\bfrom\s+)?([a-z][a-z\s]*)$/);
   if (countryMatch) {
     const rawCountry = countryMatch[1].trim();
     const cmap = getCountryMap();
     if (cmap[rawCountry]) {
       filters.country_id = cmap[rawCountry];
-      matched = true;
-    } else {
       matched = true;
     }
   }
