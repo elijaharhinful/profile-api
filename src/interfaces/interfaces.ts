@@ -20,9 +20,30 @@ export interface NationalizeResponse {
 export interface EnrichedData {
   gender: string;
   gender_probability: number;
-  sample_size: number;
   age: number;
   age_group: string;
   country_id: string;
+  country_name: string;
   country_probability: number;
+}
+
+export interface IProfile {
+  id: string;
+  name: string;
+  gender: string;
+  gender_probability: number;
+  age: number;
+  age_group: string;
+  country_id: string;
+  country_name: string;
+  country_probability: number;
+  created_at: Date;
+}
+
+export interface NLPFilter {
+  gender?: string;
+  age_group?: string;
+  country_id?: string;
+  min_age?: number;
+  max_age?: number;
 }
