@@ -183,48 +183,53 @@ export async function searchProfiles(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const q = req.query.q as string;
-  if (!q) {
+  const { q } = req.query;
+  if (!q || typeof q !== "string" || q.trim().length === 0) {
     res
       .status(400)
       .json({ status: "error", message: "Missing query parameter 'q'" });
     return;
   }
 
+  let parsed = parseNaturalLanguageQuery(q) as NLPFilter;
   try {
-    const parsed = parseNaturalLanguageQuery(q) as NLPFilter;
-
-    const prismaFilter: Prisma.ProfileWhereInput = {
-      gender: parsed.gender,
-      age_group: parsed.age_group,
-      country_id: parsed.country_id,
-      age:
-        parsed.min_age !== undefined || parsed.max_age !== undefined
-          ? {
-              ...(parsed.min_age !== undefined && { gte: parsed.min_age }),
-              ...(parsed.max_age !== undefined && { lte: parsed.max_age }),
-            }
-          : undefined,
-    };
-
-    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
-    const limit = Math.min(
-      req.query.limit ? parseInt(req.query.limit as string, 10) : 10,
-      50,
-    );
-    const skip = (page - 1) * limit;
-
-    const [total, data] = await prisma.$transaction([
-      prisma.profile.count({ where: prismaFilter }),
-      prisma.profile.findMany({ where: prismaFilter, skip, take: limit }),
-    ]);
-
-    res.status(200).json({ status: "success", page, limit, total, data });
-  } catch (err: unknown) {
+    parsed = parseNaturalLanguageQuery(q) as NLPFilter;
+  } catch {
     res
       .status(400)
       .json({ status: "error", message: "Unable to interpret query" });
     return;
+  }
+
+  const prismaFilter: Prisma.ProfileWhereInput = {
+    gender: parsed.gender,
+    age_group: parsed.age_group,
+    country_id: parsed.country_id,
+    age:
+      parsed.min_age !== undefined || parsed.max_age !== undefined
+        ? {
+            ...(parsed.min_age !== undefined && { gte: parsed.min_age }),
+            ...(parsed.max_age !== undefined && { lte: parsed.max_age }),
+          }
+        : undefined,
+  };
+
+  const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+  const limit = Math.min(
+    req.query.limit ? parseInt(req.query.limit as string, 10) : 10,
+    50,
+  );
+  const skip = (page - 1) * limit;
+
+  try {
+    const [total, data] = await prisma.$transaction([
+      prisma.profile.count({ where: prismaFilter }),
+      prisma.profile.findMany({ where: prismaFilter, skip, take: limit }),
+    ]);
+    res.status(200).json({ status: "success", page, limit, total, data });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "error", message: "Internal server error" });
   }
 }
 
