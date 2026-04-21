@@ -1,6 +1,6 @@
 # Profile API
 
-A REST API that accepts a name, enriches it using Genderize, Agify, and Nationalize APIs, stores the result in MongoDB, and exposes endpoints to manage profiles.
+A REST API that accepts a name, enriches it using external demographic APIs, stores the result in **PostgreSQL** using Prisma, and exposes endpoints to query and manage profiles with advanced filtering, pagination, and a Natural Language Processing search interface.
 
 ---
 
@@ -9,7 +9,7 @@ A REST API that accepts a name, enriches it using Genderize, Agify, and National
 - **Runtime**: Node.js
 - **Language**: TypeScript
 - **Framework**: Express
-- **Database**: MongoDB (via Mongoose)
+- **Database**: PostgreSQL (via Prisma ORM)
 - **ID generation**: UUID v7
 
 ---
@@ -19,7 +19,7 @@ A REST API that accepts a name, enriches it using Genderize, Agify, and National
 ### Prerequisites
 
 - Node.js >= 18
-- MongoDB running locally or a connection string (e.g. MongoDB Atlas)
+- PostgreSQL running locally or remotely (e.g. Supabase, Neon)
 
 ### Steps
 
@@ -33,12 +33,16 @@ npm install
 
 # 3. Configure environment
 cp .env.example .env
-# Edit .env and set your MONGODB_URI
+# Edit .env and set your DATABASE_URL
 
-# 4. Run in development mode
+# 4. Migrate database schema and seed
+npx prisma db push
+npx ts-node src/lib/seed.ts
+
+# 5. Run in development mode
 npm run dev
 
-# 5. Or build and run in production
+# 6. Or build and run in production
 npm run build
 npm start
 ```
@@ -50,7 +54,7 @@ npm start
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Port the server listens on |
-| `MONGODB_URI` | `mongodb://localhost:27017/profile-api` | MongoDB connection string |
+| `DATABASE_URL` | `postgresql://...` | PostgreSQL connection string |
 
 ---
 
@@ -113,27 +117,40 @@ Returns a single profile by UUID.
 
 ### GET `/api/profiles`
 
-Returns all profiles. Supports optional query filters (case-insensitive):
+Returns all profiles. Supports multiple combinable filters, sorting, and pagination.
 
-| Query Param | Example |
-|---|---|
-| `gender` | `?gender=male` |
-| `country_id` | `?country_id=NG` |
-| `age_group` | `?age_group=adult` |
+**Query Parameters:**
+- `gender` ("male" or "female")
+- `age_group` ("child", "teenager", "adult", "senior")
+- `country_id` (ISO code, e.g., "NG")
+- `min_age` (Exact minimum age, inclusive)
+- `max_age` (Exact maximum age, inclusive)
+- `min_gender_probability` (Float)
+- `min_country_probability` (Float)
+- `sort_by` ("age", "created_at", "gender_probability")
+- `order` ("asc", "desc")
+- `page` (default: 1)
+- `limit` (default: 10, max: 50)
 
 **200 OK:**
 ```json
 {
   "status": "success",
-  "count": 2,
+  "page": 1,
+  "limit": 10,
+  "total": 2026,
   "data": [
     {
-      "id": "...",
+      "id": "b3f9c1e2-7d4a-4c91-9c2a-1f0a8e5b6d12",
       "name": "emmanuel",
       "gender": "male",
-      "age": 25,
+      "gender_probability": 0.99,
+      "age": 34,
       "age_group": "adult",
-      "country_id": "NG"
+      "country_id": "NG",
+      "country_name": "Nigeria",
+      "country_probability": 0.85,
+      "created_at": "2026-04-01T12:00:00.000Z"
     }
   ]
 }
@@ -141,8 +158,36 @@ Returns all profiles. Supports optional query filters (case-insensitive):
 
 ---
 
-### DELETE `/api/profiles/:id`
+### GET `/api/profiles/search` (Natural Language Query)
 
+Parses plain English queries to return filtered profiles. Uses pagination similar to `/api/profiles`.
+
+**Example:**
+`GET /api/profiles/search?q=young males from nigeria` -> Maps to `min_age=16`, `max_age=24`, `gender=male`, `country_id=NG`.
+
+#### Natural Language Parsing Approach
+The engine utilizes a rule-based parser that scans the query string using Regex for predefined demographic keywords and transforms them into structured filters:
+- **Age Groups**: Detects words like `children/child` (`age_group=child`), `teenager/teenagers` (`age_group=teenager`), `adult/adults` (`age_group=adult`), `senior/seniors` (`age_group=senior`). The keyword `young` maps implicitly to `min_age=16` and `max_age=24`.
+- **Gender**: Matches `male/males` and `female/females`. If both genders are mentioned (e.g. "males and females"), they cancel each other out, applying no gender filter.
+- **Geography**: Intercepts the phrase `from [country_name]` and queries a cached dictionary to resolve the exact mapping to `country_id` (e.g. from "gabon" to "GA").
+- **Quantitative Boundaries**: Extracts numbers following keywords for dynamic boundaries. `above/over X` maps to `min_age=X`. `under/below X` maps to `max_age=X`.
+
+#### Logic & Limitations
+- **Approach**: The parser builds an accumulator object containing bounds. Multiple parameters can be cleanly aggregated. If no rules generate matches during evaluation, a `400 Bad Request` with `Unable to interpret query` is returned.
+- **Limitations & Unsupported Cases**:
+  - The parsing is strict rule-based, meaning typos (e.g. "teanagers") are completely ignored and will not apply filters.
+  - Queries lacking the explicit `from` prefix prior to geographic details (e.g. "nigeria adults") will fail to properly extract the location.
+  - Cross-referencing conditional logic (e.g. "males over 30 OR females under 20") is not natively supported to keep the API logic streamlined.
+
+---
+
+### POST `/api/profiles`
+Creates a new profile by enriching the given name via external APIs.
+
+### GET `/api/profiles/:id`
+Returns a single profile by UUID.
+
+### DELETE `/api/profiles/:id`
 Deletes a profile by UUID.
 
 - **204 No Content** on success
@@ -152,20 +197,17 @@ Deletes a profile by UUID.
 
 ## Error Responses
 
-All errors follow this structure:
+| Code | Cause |
+|---|---|
+| 400 | Missing or empty parameter, or *Unable to interpret query* |
+| 422 | Invalid parameter type |
+| 404 | Profile not found |
+| 500/502 | Server failure / API issues |
 
+All errors follow this structure:
 ```json
 { "status": "error", "message": "<error message>" }
 ```
-
-| Code | Cause |
-|---|---|
-| 400 | Missing or empty `name` |
-| 422 | Invalid type for `name` |
-| 404 | Profile not found |
-| 502 | External API returned invalid/null data |
-| 500 | Internal server error |
-
 ---
 
 ## Classification Rules
@@ -193,7 +235,7 @@ Nationality is picked as the country with the **highest probability** from the N
 
 ## Deployment
 
-Set the `MONGODB_URI` environment variable to your production MongoDB connection string (e.g. MongoDB Atlas) before deploying.
+Set the `DATABASE_URL` environment variable to your production PostgreSQL connection string (e.g. Neon, Supabase) before deploying.
 
 ---
 

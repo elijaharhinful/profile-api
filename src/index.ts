@@ -1,16 +1,14 @@
 import express from "express";
 import cors from "cors";
-import mongoose from "mongoose";
 import profileRoutes from "./routes/profiles";
 import { errorHandler, notFound } from "./middleware/errorHandler";
 import dotenv from "dotenv";
+import { prisma } from "./lib/prisma";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/profile-api";
 
 // Middleware
 app.use(cors({ origin: "*" }));
@@ -33,17 +31,17 @@ app.get("/", (_req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// Connect to MongoDB then start server
-mongoose
-  .connect(MONGODB_URI)
+// Connect to Postgres then start server
+prisma
+  .$connect()
   .then(() => {
-    console.log("Connected to MongoDB");
+    console.log("Connected to PostgreSQL via Prisma");
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((err: unknown) => {
-    console.error("MongoDB connection error:", err);
+    console.error("Database connection error:", err);
     process.exit(1);
   });
 
