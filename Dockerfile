@@ -12,6 +12,10 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV="production"
 
+# Install OpenSSL in the base or final stage
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends openssl libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build
