@@ -74,13 +74,21 @@ export async function enrichName(name: string): Promise<EnrichedData> {
     a.probability > b.probability ? a : b,
   );
 
+  let country_name = "Unknown";
+  try {
+    const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+    country_name = regionNames.of(topCountry.country_id) || "Unknown";
+  } catch (e) {
+    // ignore
+  }
+
   return {
     gender: genderData.gender,
     gender_probability: genderData.probability,
-    sample_size: genderData.count,
     age: agifyData.age,
     age_group: getAgeGroup(agifyData.age),
     country_id: topCountry.country_id,
+    country_name,
     country_probability: topCountry.probability,
   };
 }
