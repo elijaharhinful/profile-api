@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 let countryMap: Record<string, string> | null = null;
+let sortedCountryNames: string[] = [];
 
 function getCountryMap() {
   if (!countryMap) {
@@ -15,12 +16,14 @@ function getCountryMap() {
           countryMap[p.country_name.toLowerCase()] = p.country_id;
         }
       }
+      sortedCountryNames = Object.keys(countryMap).sort((a, b) => b.length - a.length);
     } catch (e) {
       console.error("Failed to load country map for NLP", e);
       countryMap = {};
+      sortedCountryNames = [];
     }
   }
-  return countryMap;
+  return { cmap: countryMap, names: sortedCountryNames };
 }
 
 export function parseNaturalLanguageQuery(
@@ -68,13 +71,14 @@ export function parseNaturalLanguageQuery(
   }
 
   // Country
-  const countryMatch = lowerQuery.match(/(?:\bfrom\s+)?([a-z][a-z\s]*)$/);
-  if (countryMatch) {
-    const rawCountry = countryMatch[1].trim();
-    const cmap = getCountryMap();
-    if (cmap[rawCountry]) {
-      filters.country_id = cmap[rawCountry];
+  const { cmap, names } = getCountryMap();
+  for (const countryName of names) {
+    const escapedCountryName = countryName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escapedCountryName}\\b`);
+    if (regex.test(lowerQuery)) {
+      filters.country_id = cmap[countryName];
       matched = true;
+      break;
     }
   }
 

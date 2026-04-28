@@ -1,37 +1,55 @@
 import express from "express";
 import cors from "cors";
-import profileRoutes from "./routes/profiles";
-import { errorHandler, notFound } from "./middleware/errorHandler";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
+
+import profileRoutes from "./routes/profiles";
+import authRoutes from "./routes/auth";
+import { errorHandler, notFound } from "./middleware/errorHandler";
+import { issueCsrfToken } from "./middleware/csrf.middleware";
+import { requestLogger } from "./middleware/requestLogger.middleware";
 import { prisma } from "./lib/prisma";
+import { config } from "./config/env";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
 
-// Middleware
-app.use(cors({ origin: "*" }));
+// ─── CORS ──────────────────────────────────────────────────────────────────
+app.use(
+  cors({
+    origin: [config.frontendUrl],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-API-Version", "X-CSRF-Token"],
+  })
+);
+
+// ─── Body + cookies ────────────────────────────────────────────────────────
 app.use(express.json());
+app.use(cookieParser());
 
-// Ensure CORS header is always present (even on errors)
-app.use((_req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  next();
+// ─── CSRF token issuance (for web clients) ─────────────────────────────────
+app.use(issueCsrfToken);
+
+// ─── Request logging ───────────────────────────────────────────────────────
+app.use(requestLogger);
+
+// ─── Health check ──────────────────────────────────────────────────────────
+app.get("/", (_req, res) => {
+  res.json({ status: "ok", service: "Insighta Labs+ API", version: "1" });
 });
 
-// Routes
+// ─── Routes ────────────────────────────────────────────────────────────────
+app.use("/auth", authRoutes);
 app.use("/api/profiles", profileRoutes);
 
-app.get("/", (_req, res) => {
-  res.send("Welcome to the Profile API");
-});
-
-// 404 and error handlers
+// ─── Error handlers ────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
-// Connect to Postgres then start server
+// ─── Start ─────────────────────────────────────────────────────────────────
 prisma
   .$connect()
   .then(() => {

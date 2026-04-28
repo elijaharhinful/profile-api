@@ -1,12 +1,65 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // for migrations
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  analyst
+  admin
+}
+
+model User {
+  id             String       @id @default(uuid())
+  github_id      String       @unique
+  username       String       @unique
+  email          String?
+  avatar_url     String?
+  role           Role         @default(analyst)
+  is_active      Boolean      @default(true)
+  last_login_at  DateTime?
+  created_at     DateTime     @default(now())
+  sessions       Session[]
+  request_logs   RequestLog[]
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  user_id        String
+  user           User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  access_token   String    @unique
+  refresh_token  String    @unique
+  access_expiry  DateTime
+  refresh_expiry DateTime
+  client_type    String    // "cli" | "web"
+  created_at     DateTime  @default(now())
+  revoked_at     DateTime?
+}
+
+model OAuthState {
+  state         String   @id
+  code_verifier String
+  client_type   String
+  expires_at    DateTime
+  created_at    DateTime @default(now())
+}
+
+model RequestLog {
+  id          String   @id @default(uuid())
+  user_id     String?
+  user        User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  method      String
+  path        String
+  status_code Int
+  ip          String?
+  user_agent  String?
+  duration_ms Int
+  created_at  DateTime @default(now())
 }
 
 model Profile {
