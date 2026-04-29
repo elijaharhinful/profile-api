@@ -10,7 +10,7 @@ import {
 import { config } from "../config/env";
 import { AuthenticatedRequest } from "../middleware/auth.middleware";
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+// Helpers
 
 async function exchangeCodeWithGitHub(
   code: string,
@@ -128,8 +128,7 @@ function clearWebCookies(res: Response) {
   res.clearCookie("refresh_token");
 }
 
-// ─── Expose GitHub client config (public) ─────────────────────────────────
-
+// Expose GitHub client config (public)
 export function getAuthConfig(_req: Request, res: Response) {
   res.json({
     github_client_id: config.github.clientId,
@@ -137,7 +136,14 @@ export function getAuthConfig(_req: Request, res: Response) {
   });
 }
 
-// ─── WEB FLOW ─────────────────────────────────────────────────────────────
+export function getCsrfToken(
+  req: Request & { csrfToken?: string },
+  res: Response,
+) {
+  res.json({ status: "success", csrf_token: req.csrfToken });
+}
+
+// WEB FLOW
 
 // GET /auth/github  — Initiates GitHub OAuth for web
 export async function initiateWebOAuth(_req: Request, res: Response) {
@@ -209,11 +215,12 @@ export async function handleWebCallback(req: Request, res: Response) {
   const user = await upsertUser(ghUser);
   const tokens = await createSession(user.id, "web");
 
-  setWebCookies(res, tokens.access_token, tokens.refresh_token);
-  res.redirect(`${config.frontendUrl}/dashboard`);
+  res.redirect(
+    `${config.frontendUrl}/api/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`,
+  );
 }
 
-// ─── CLI FLOW ─────────────────────────────────────────────────────────────
+// CLI FLOW
 
 // POST /auth/cli/exchange — CLI sends code + code_verifier, gets tokens as JSON
 export async function handleCliExchange(req: Request, res: Response) {
@@ -223,12 +230,10 @@ export async function handleCliExchange(req: Request, res: Response) {
   };
 
   if (!code || !code_verifier) {
-    res
-      .status(400)
-      .json({
-        status: "error",
-        message: "code and code_verifier are required",
-      });
+    res.status(400).json({
+      status: "error",
+      message: "code and code_verifier are required",
+    });
     return;
   }
 
@@ -260,7 +265,7 @@ export async function handleCliExchange(req: Request, res: Response) {
   });
 }
 
-// ─── SHARED ───────────────────────────────────────────────────────────────
+// SHARED
 
 // POST /auth/refresh
 export async function refreshToken(req: Request, res: Response) {
@@ -324,7 +329,7 @@ export async function logout(req: AuthenticatedRequest, res: Response) {
   res.json({ status: "success", message: "Logged out successfully" });
 }
 
-// GET /auth/me
+// GET /auth/me or /auth/users/me
 export async function getMe(req: AuthenticatedRequest, res: Response) {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },

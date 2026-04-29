@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 
 import profileRoutes from "./routes/profiles";
 import authRoutes from "./routes/auth";
+import userRoutes from "./routes/users";
 import { errorHandler, notFound } from "./middleware/errorHandler";
 import { issueCsrfToken } from "./middleware/csrf.middleware";
 import { requestLogger } from "./middleware/requestLogger.middleware";
@@ -20,7 +21,7 @@ app.set("trust proxy", 1);
 
 app.use(
   cors({
-    origin: ["*"],
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
@@ -29,6 +30,7 @@ app.use(
       "X-API-Version",
       "X-CSRF-Token",
     ],
+    exposedHeaders: ["Set-Cookie"],
   }),
 );
 
@@ -45,6 +47,7 @@ app.get("/", (_req, res) => {
 
 app.use("/auth", authRoutes);
 app.use("/api/profiles", profileRoutes);
+app.use("/api/users", userRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
