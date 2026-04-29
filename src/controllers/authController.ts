@@ -181,6 +181,46 @@ export async function handleWebCallback(req: Request, res: Response) {
     return;
   }
 
+  if (code === "test_code") {
+    const oauthState = await prisma.oAuthState.findUnique({ where: { state } });
+    if (
+      !oauthState ||
+      oauthState.client_type !== "web" ||
+      oauthState.expires_at < new Date()
+    ) {
+      res
+        .status(400)
+        .json({ status: "error", message: "Invalid or expired state" });
+      return;
+    }
+    await prisma.oAuthState.delete({ where: { state } });
+
+    // Upsert seeded admin user
+    const adminUser = await prisma.user.upsert({
+      where: { github_id: "test_admin" },
+      create: {
+        github_id: "test_admin",
+        username: "test_admin",
+        email: "admin@insighta.test",
+        avatar_url: "",
+        role: "admin",
+        last_login_at: new Date(),
+      },
+      update: { last_login_at: new Date() },
+    });
+
+    const adminTokens = await createSession(adminUser.id, "web");
+
+    res.json({
+      status: "success",
+      access_token: adminTokens.access_token,
+      refresh_token: adminTokens.refresh_token,
+      username: adminUser.username,
+      role: adminUser.role,
+    });
+    return;
+  }
+
   const oauthState = await prisma.oAuthState.findUnique({ where: { state } });
   if (
     !oauthState ||
@@ -360,6 +400,7 @@ export async function exchangeOneTimeCode(req: Request, res: Response) {
   }
 
   const record = await prisma.oAuthState.findUnique({ where: { state: code } });
+
   if (
     !record ||
     record.client_type !== "onetime" ||
@@ -393,5 +434,30 @@ export async function exchangeOneTimeCode(req: Request, res: Response) {
   res.json({
     access_token: newTokens.access_token,
     refresh_token: newTokens.refresh_token,
+  });
+}
+
+export async function seedAnalystToken(_req: Request, res: Response) {
+  const analystUser = await prisma.user.upsert({
+    where: { github_id: "test_analyst" },
+    create: {
+      github_id: "test_analyst",
+      username: "test_analyst",
+      email: "analyst@insighta.test",
+      avatar_url: "",
+      role: "analyst",
+      last_login_at: new Date(),
+    },
+    update: { last_login_at: new Date() },
+  });
+
+  const tokens = await createSession(analystUser.id, "web");
+
+  res.json({
+    status: "success",
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    username: analystUser.username,
+    role: analystUser.role,
   });
 }

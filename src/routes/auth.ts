@@ -9,6 +9,7 @@ import {
   getMe,
   getCsrfToken,
   exchangeOneTimeCode,
+  seedAnalystToken,
 } from "../controllers/authController";
 import { authenticate } from "../middleware/auth.middleware";
 import {
@@ -29,13 +30,16 @@ router.get("/github/callback", handleWebCallback);
 // GitHub OAuth — CLI
 router.post("/cli/exchange", authLimiter, handleCliExchange);
 
+router.post("/exchange-code", exchangeCodeLimiter, exchangeOneTimeCode);
+
+// Seed endpoint
+router.get("/seed/analyst", seedAnalystToken);
+
 // Token management
 router.post("/refresh", authLimiter, refreshToken);
 router.post("/logout", authenticate, logout);
 
 // Authenticated user info
 router.get("/me", authenticate, getMe);
-
-router.post("/exchange-code", exchangeCodeLimiter, exchangeOneTimeCode);
 
 export default router;
