@@ -7,6 +7,7 @@ import {
   refreshToken,
   logout,
   getMe,
+  getCsrfToken,
 } from "../controllers/authController";
 import { authenticate } from "../middleware/auth.middleware";
 import { authLimiter } from "../middleware/rateLimiter.middleware";
@@ -15,6 +16,7 @@ const router = Router();
 
 // Public
 router.get("/config", getAuthConfig);
+router.get("/csrf-token", getCsrfToken);
 
 // GitHub OAuth — Web
 router.get("/github", authLimiter, initiateWebOAuth);
