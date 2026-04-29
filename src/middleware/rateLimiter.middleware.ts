@@ -27,3 +27,14 @@ export const apiLimiter = rateLimit({
     return r.user?.id ?? req.ip ?? "unknown";
   },
 });
+
+export const exchangeCodeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: "error",
+    message: "Too many requests, please try again later",
+  },
+});

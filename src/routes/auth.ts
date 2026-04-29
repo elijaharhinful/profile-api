@@ -8,9 +8,13 @@ import {
   logout,
   getMe,
   getCsrfToken,
+  exchangeOneTimeCode,
 } from "../controllers/authController";
 import { authenticate } from "../middleware/auth.middleware";
-import { authLimiter } from "../middleware/rateLimiter.middleware";
+import {
+  authLimiter,
+  exchangeCodeLimiter,
+} from "../middleware/rateLimiter.middleware";
 
 const router = Router();
 
@@ -31,5 +35,7 @@ router.post("/logout", authenticate, logout);
 
 // Authenticated user info
 router.get("/me", authenticate, getMe);
+
+router.post("/exchange-code", exchangeCodeLimiter, exchangeOneTimeCode);
 
 export default router;
