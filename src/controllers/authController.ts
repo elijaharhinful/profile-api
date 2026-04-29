@@ -15,7 +15,7 @@ import { AuthenticatedRequest } from "../middleware/auth.middleware";
 async function exchangeCodeWithGitHub(
   code: string,
   redirectUri: string,
-  codeVerifier?: string
+  codeVerifier?: string,
 ): Promise<{ access_token: string }> {
   const params: Record<string, string> = {
     client_id: config.github.clientId,
@@ -40,7 +40,10 @@ async function exchangeCodeWithGitHub(
 
 async function getGitHubUser(ghToken: string) {
   const res = await fetch("https://api.github.com/user", {
-    headers: { Authorization: `Bearer ${ghToken}`, "User-Agent": "InsightaLabs" },
+    headers: {
+      Authorization: `Bearer ${ghToken}`,
+      "User-Agent": "InsightaLabs",
+    },
   });
   if (!res.ok) throw new Error("Failed to fetch GitHub user");
   return res.json() as Promise<{
@@ -97,9 +100,19 @@ async function upsertUser(ghUser: {
   });
 }
 
-function setWebCookies(res: Response, access_token: string, refresh_token: string) {
+function setWebCookies(
+  res: Response,
+  access_token: string,
+  refresh_token: string,
+) {
   const isProduction = config.nodeEnv === "production";
-  const opts = { httpOnly: true, secure: isProduction, sameSite: "lax" as const };
+
+  const opts = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
+  };
+
   res.cookie("access_token", access_token, {
     ...opts,
     maxAge: config.tokens.accessExpiryMs,
@@ -163,8 +176,14 @@ export async function handleWebCallback(req: Request, res: Response) {
   }
 
   const oauthState = await prisma.oAuthState.findUnique({ where: { state } });
-  if (!oauthState || oauthState.client_type !== "web" || oauthState.expires_at < new Date()) {
-    res.status(400).json({ status: "error", message: "Invalid or expired state" });
+  if (
+    !oauthState ||
+    oauthState.client_type !== "web" ||
+    oauthState.expires_at < new Date()
+  ) {
+    res
+      .status(400)
+      .json({ status: "error", message: "Invalid or expired state" });
     return;
   }
 
@@ -173,10 +192,16 @@ export async function handleWebCallback(req: Request, res: Response) {
 
   let ghToken: string;
   try {
-    const result = await exchangeCodeWithGitHub(code, config.github.callbackUrlWeb, oauthState.code_verifier);
+    const result = await exchangeCodeWithGitHub(
+      code,
+      config.github.callbackUrlWeb,
+      oauthState.code_verifier,
+    );
     ghToken = result.access_token;
   } catch {
-    res.status(502).json({ status: "error", message: "GitHub OAuth exchange failed" });
+    res
+      .status(502)
+      .json({ status: "error", message: "GitHub OAuth exchange failed" });
     return;
   }
 
@@ -192,19 +217,33 @@ export async function handleWebCallback(req: Request, res: Response) {
 
 // POST /auth/cli/exchange — CLI sends code + code_verifier, gets tokens as JSON
 export async function handleCliExchange(req: Request, res: Response) {
-  const { code, code_verifier } = req.body as { code?: string; code_verifier?: string };
+  const { code, code_verifier } = req.body as {
+    code?: string;
+    code_verifier?: string;
+  };
 
   if (!code || !code_verifier) {
-    res.status(400).json({ status: "error", message: "code and code_verifier are required" });
+    res
+      .status(400)
+      .json({
+        status: "error",
+        message: "code and code_verifier are required",
+      });
     return;
   }
 
   let ghToken: string;
   try {
-    const result = await exchangeCodeWithGitHub(code, config.github.callbackUrlCLI, code_verifier);
+    const result = await exchangeCodeWithGitHub(
+      code,
+      config.github.callbackUrlCLI,
+      code_verifier,
+    );
     ghToken = result.access_token;
   } catch {
-    res.status(401).json({ status: "error", message: "GitHub OAuth exchange failed" });
+    res
+      .status(401)
+      .json({ status: "error", message: "GitHub OAuth exchange failed" });
     return;
   }
 
@@ -230,12 +269,16 @@ export async function refreshToken(req: Request, res: Response) {
     req.body?.refresh_token ?? req.cookies?.refresh_token;
 
   if (!rawRefresh) {
-    res.status(400).json({ status: "error", message: "refresh_token is required" });
+    res
+      .status(400)
+      .json({ status: "error", message: "refresh_token is required" });
     return;
   }
 
   const hashed = hashToken(rawRefresh);
-  const session = await prisma.session.findUnique({ where: { refresh_token: hashed } });
+  const session = await prisma.session.findUnique({
+    where: { refresh_token: hashed },
+  });
 
   if (!session || session.revoked_at) {
     res.status(401).json({ status: "error", message: "Invalid refresh token" });

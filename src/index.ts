@@ -16,40 +16,39 @@ dotenv.config();
 const app = express();
 const PORT = config.port;
 
-// ─── CORS ──────────────────────────────────────────────────────────────────
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: [config.frontendUrl],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-API-Version", "X-CSRF-Token"],
-  })
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-API-Version",
+      "X-CSRF-Token",
+    ],
+  }),
 );
 
-// ─── Body + cookies ────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(cookieParser());
 
-// ─── CSRF token issuance (for web clients) ─────────────────────────────────
 app.use(issueCsrfToken);
 
-// ─── Request logging ───────────────────────────────────────────────────────
 app.use(requestLogger);
 
-// ─── Health check ──────────────────────────────────────────────────────────
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "Insighta Labs+ API", version: "1" });
 });
 
-// ─── Routes ────────────────────────────────────────────────────────────────
 app.use("/auth", authRoutes);
 app.use("/api/profiles", profileRoutes);
 
-// ─── Error handlers ────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
-// ─── Start ─────────────────────────────────────────────────────────────────
 prisma
   .$connect()
   .then(() => {
