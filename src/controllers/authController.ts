@@ -177,7 +177,7 @@ export async function handleWebCallback(req: Request, res: Response) {
   const { code, state } = req.query as { code?: string; state?: string };
 
   if (!code || !state) {
-    res.status(400).json({ status: "error", message: "Missing code or state" });
+    res.redirect(`${config.frontendUrl}/?error=missing_params`);
     return;
   }
 
@@ -187,13 +187,10 @@ export async function handleWebCallback(req: Request, res: Response) {
     oauthState.client_type !== "web" ||
     oauthState.expires_at < new Date()
   ) {
-    res
-      .status(400)
-      .json({ status: "error", message: "Invalid or expired state" });
+    res.redirect(`${config.frontendUrl}/?error=invalid_state`);
     return;
   }
 
-  // Delete used state (one-time use)
   await prisma.oAuthState.delete({ where: { state } });
 
   let ghToken: string;
@@ -205,9 +202,7 @@ export async function handleWebCallback(req: Request, res: Response) {
     );
     ghToken = result.access_token;
   } catch {
-    res
-      .status(502)
-      .json({ status: "error", message: "GitHub OAuth exchange failed" });
+    res.redirect(`${config.frontendUrl}/?error=github_exchange_failed`);
     return;
   }
 
@@ -215,9 +210,18 @@ export async function handleWebCallback(req: Request, res: Response) {
   const user = await upsertUser(ghUser);
   const tokens = await createSession(user.id, "web");
 
-  res.redirect(
-    `${config.frontendUrl}/api/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`,
-  );
+  const onetimeCode = generateToken();
+  await prisma.oAuthState.create({
+    data: {
+      state: onetimeCode,
+      code_verifier: tokens.access_token,
+      client_type: "onetime",
+      expires_at: new Date(Date.now() + 60 * 1000), // 1 min
+    },
+  });
+
+  // redirect to frontend with one-time code only
+  res.redirect(`${config.frontendUrl}/api/auth/callback?code=${onetimeCode}`);
 }
 
 // CLI FLOW
@@ -345,4 +349,49 @@ export async function getMe(req: AuthenticatedRequest, res: Response) {
     },
   });
   res.json({ status: "success", data: user });
+}
+
+export async function exchangeOneTimeCode(req: Request, res: Response) {
+  const { code } = req.body as { code?: string };
+
+  if (!code) {
+    res.status(400).json({ status: "error", message: "code is required" });
+    return;
+  }
+
+  const record = await prisma.oAuthState.findUnique({ where: { state: code } });
+  if (
+    !record ||
+    record.client_type !== "onetime" ||
+    record.expires_at < new Date()
+  ) {
+    res
+      .status(401)
+      .json({ status: "error", message: "Invalid or expired code" });
+    return;
+  }
+
+  await prisma.oAuthState.delete({ where: { state: code } });
+
+  const access_token = record.code_verifier;
+
+  const session = await prisma.session.findFirst({
+    where: { access_token: hashToken(access_token), revoked_at: null },
+  });
+
+  if (!session) {
+    res.status(401).json({ status: "error", message: "Session not found" });
+    return;
+  }
+
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { revoked_at: new Date() },
+  });
+
+  const newTokens = await createSession(session.user_id, "web");
+  res.json({
+    access_token: newTokens.access_token,
+    refresh_token: newTokens.refresh_token,
+  });
 }
