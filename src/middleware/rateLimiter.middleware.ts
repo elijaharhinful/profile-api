@@ -1,4 +1,21 @@
 import rateLimit from "express-rate-limit";
+import { Request } from "express";
+
+// Normalize IPv6-mapped IPv4 addresses (e.g. ::ffff:1.2.3.4 -> 1.2.3.4)
+// and handle proxy forwarded IPs correctly
+function getClientIp(req: Request): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  let ip: string;
+  if (forwarded) {
+    ip = (typeof forwarded === "string" ? forwarded : forwarded[0])
+      .split(",")[0]
+      .trim();
+  } else {
+    ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
+  }
+  // Strip IPv6 prefix
+  return ip.replace(/^::ffff:/, "");
+}
 
 // 10 req/min for auth endpoints (IP-based)
 export const authLimiter = rateLimit({
@@ -6,6 +23,7 @@ export const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientIp,
   message: {
     status: "error",
     message: "Too many requests, please try again later",
@@ -18,6 +36,7 @@ export const apiLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientIp,
   message: {
     status: "error",
     message: "Too many requests, please try again later",
@@ -29,6 +48,7 @@ export const exchangeCodeLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientIp,
   message: {
     status: "error",
     message: "Too many requests, please try again later",
