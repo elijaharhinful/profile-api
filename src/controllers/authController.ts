@@ -169,14 +169,9 @@ export async function initiateWebOAuth(req: Request, res: Response) {
     code_challenge_method: "S256",
   });
 
-  // Ensure CORS headers are present even on redirect responses
-  const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
+  const authUrl = `https://github.com/login/oauth/authorize?${params}`;
 
-  res.redirect(`https://github.com/login/oauth/authorize?${params}`);
+  res.json({ status: "success", auth_url: authUrl, state });
 }
 
 // GET /auth/github/callback  — Web OAuth callback
@@ -357,16 +352,16 @@ export async function refreshToken(req: Request, res: Response) {
   // Issue new token pair
   const newTokens = await createSession(session.user_id, session.client_type);
 
+  // Always set cookies for web clients
   if (session.client_type === "web") {
     setWebCookies(res, newTokens.access_token, newTokens.refresh_token);
-    res.json({ status: "success" });
-  } else {
-    res.json({
-      status: "success",
-      access_token: newTokens.access_token,
-      refresh_token: newTokens.refresh_token,
-    });
   }
+
+  res.json({
+    status: "success",
+    access_token: newTokens.access_token,
+    refresh_token: newTokens.refresh_token,
+  });
 }
 
 // POST /auth/logout
