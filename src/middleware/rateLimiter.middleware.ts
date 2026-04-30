@@ -22,10 +22,14 @@ export const apiLimiter = rateLimit({
     status: "error",
     message: "Too many requests, please try again later",
   },
-  keyGenerator: (req, res) => {
+  keyGenerator: (req) => {
     const r = req as unknown as { user?: { id: string } };
-    return r.user?.id ?? ipKeyGenerator(req);
+    if (r.user?.id) return r.user.id;
+
+    const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
+    return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
   },
+  validate: { xForwardedForHeader: false },
 });
 
 export const exchangeCodeLimiter = rateLimit({
