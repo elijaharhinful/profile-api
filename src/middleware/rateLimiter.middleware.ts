@@ -1,4 +1,4 @@
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 
 // 10 req/min for auth endpoints (IP-based)
 export const authLimiter = rateLimit({
@@ -22,14 +22,6 @@ export const apiLimiter = rateLimit({
     status: "error",
     message: "Too many requests, please try again later",
   },
-  keyGenerator: (req) => {
-    const r = req as unknown as { user?: { id: string } };
-    if (r.user?.id) return r.user.id;
-
-    const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
-    return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
-  },
-  validate: { xForwardedForHeader: false },
 });
 
 export const exchangeCodeLimiter = rateLimit({
