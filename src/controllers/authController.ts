@@ -171,7 +171,16 @@ export async function initiateWebOAuth(req: Request, res: Response) {
 
   const authUrl = `https://github.com/login/oauth/authorize?${params}`;
 
-  res.json({ status: "success", auth_url: authUrl, state });
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.setHeader("Vary", "Origin");
+
+  res.redirect(authUrl);
 }
 
 // GET /auth/github/callback  — Web OAuth callback
