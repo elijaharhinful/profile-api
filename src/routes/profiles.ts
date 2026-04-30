@@ -13,8 +13,8 @@ import { apiLimiter } from "../middleware/rateLimiter.middleware";
 
 const router = Router();
 
-// All profile routes require: auth + API version header + rate limit
-router.use(authenticate, requireApiVersion, apiLimiter);
+// All profile routes require API version header, then auth + rate limit
+router.use(requireApiVersion, authenticate, apiLimiter);
 
 // Admin-only mutations
 router.post("/", requireRole("admin"), createProfile);
