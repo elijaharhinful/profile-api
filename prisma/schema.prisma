@@ -73,4 +73,12 @@ model Profile {
   country_name        String
   country_probability Float
   created_at          DateTime @default(now())
+
+  // Single-column indexes
+  @@index([age_group])
+  @@index([country_id])
+  @@index([age])
+  // Composite indexes
+  @@index([gender, country_id])
+  @@index([gender, age])
 }

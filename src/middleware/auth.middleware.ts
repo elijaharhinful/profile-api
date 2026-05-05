@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
 import { hashToken } from "../lib/crypto";
+import { cacheGet, cacheSet } from "../lib/redis";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -34,38 +35,54 @@ export async function authenticate(
     }
 
     const hashedToken = hashToken(token);
+    const cacheKey = `session:${hashedToken}`;
 
-    const session = await prisma.session.findUnique({
-      where: { access_token: hashedToken },
-      include: { user: true },
-    });
+    const cachedSession = await cacheGet(cacheKey);
+    let sessionData;
 
-    if (!session) {
-      res.status(401).json({ status: "error", message: "Invalid token" });
-      return;
+    if (cachedSession) {
+      sessionData = JSON.parse(cachedSession);
+    } else {
+      const session = await prisma.session.findUnique({
+        where: { access_token: hashedToken },
+        include: { user: true },
+      });
+
+      if (!session) {
+        res.status(401).json({ status: "error", message: "Invalid token" });
+        return;
+      }
+
+      if (session.revoked_at) {
+        res.status(401).json({ status: "error", message: "Session revoked" });
+        return;
+      }
+
+      if (session.access_expiry < new Date()) {
+        res.status(401).json({ status: "error", message: "Token expired" });
+        return;
+      }
+
+      if (!session.user.is_active) {
+        res.status(403).json({ status: "error", message: "Account is inactive" });
+        return;
+      }
+
+      sessionData = {
+        sessionId: session.id,
+        user: {
+          id: session.user.id,
+          username: session.user.username,
+          role: session.user.role,
+        },
+      };
+
+      // Cache the valid session for 5 minutes (300 seconds)
+      cacheSet(cacheKey, JSON.stringify(sessionData), 300).catch(() => null);
     }
 
-    if (session.revoked_at) {
-      res.status(401).json({ status: "error", message: "Session revoked" });
-      return;
-    }
-
-    if (session.access_expiry < new Date()) {
-      res.status(401).json({ status: "error", message: "Token expired" });
-      return;
-    }
-
-    if (!session.user.is_active) {
-      res.status(403).json({ status: "error", message: "Account is inactive" });
-      return;
-    }
-
-    req.user = {
-      id: session.user.id,
-      username: session.user.username,
-      role: session.user.role,
-    };
-    req.sessionId = session.id;
+    req.user = sessionData.user;
+    req.sessionId = sessionData.sessionId;
 
     next();
   } catch (err) {

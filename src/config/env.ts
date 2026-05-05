@@ -12,4 +12,6 @@ export const config = {
     refreshExpiryMs: parseInt(process.env.REFRESH_TOKEN_EXPIRY_MS || "300000"), // 5 min
   },
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
-};
+  redisUrl: process.env.REDIS_URL || "",
+  cacheTtlSeconds: parseInt(process.env.CACHE_TTL_SECONDS || "60"),
+};

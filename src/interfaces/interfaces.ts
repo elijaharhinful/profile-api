@@ -47,3 +47,26 @@ export interface NLPFilter {
   min_age?: number;
   max_age?: number;
 }
+
+export interface SkipReasons {
+  missing_fields: number;
+  invalid_age: number;
+  invalid_gender: number;
+  invalid_age_group: number;
+  invalid_probability: number;
+  malformed_row: number;
+  [key: string]: number;
+}
+
+export interface ValidRow {
+  id: string;
+  name: string;
+  gender: string;
+  gender_probability: number;
+  age: number;
+  age_group: string;
+  country_id: string;
+  country_name: string;
+  country_probability: number;
+  created_at: Date;
+}
