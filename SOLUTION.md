@@ -1,4 +1,4 @@
-# Stage 4B: System Optimization & Data Ingestion
+# System Optimization & Data Ingestion
 
 This document details the technical implementations applied to scale the Insighta Labs+ backend, specifically targeting latency reduction, database tuning, and high-volume data ingestion.
 
