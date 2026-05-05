@@ -1,4 +1,4 @@
-# Insighta Labs+: Profile Intelligence API
+# Insighta Labs+ API
 
 The **Insighta Labs+ API** is the secure core of the Profile Intelligence System. It manages user authentication via GitHub OAuth with PKCE, enforces role-based access control (RBAC), enriches profile data from external demographic sources, and provides advanced querying capabilities via standard filters and a Natural Language Processing (NLP) interface.
 
