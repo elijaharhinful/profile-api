@@ -16,7 +16,7 @@ export function requestLogger(req: AuthenticatedRequest, res: Response, next: Ne
       .create({
         data: {
           method: req.method,
-          path: req.path,
+          path: req.originalUrl,
           status_code: res.statusCode,
           ip: req.ip ?? null,
           user_agent: req.headers["user-agent"] ?? null,
