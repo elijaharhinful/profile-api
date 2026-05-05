@@ -31,6 +31,12 @@ export function verifyCsrfToken(
   const safeMethods = ["GET", "HEAD", "OPTIONS"];
   if (safeMethods.includes(req.method)) return next();
 
+  // Skip CSRF check if using Bearer token (CLI / API clients)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
   const cookieToken = req.cookies?.[CSRF_COOKIE];
   const headerToken = req.headers[CSRF_HEADER];
 

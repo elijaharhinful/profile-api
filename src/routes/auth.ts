@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { verifyCsrfToken } from "../middleware/csrf.middleware";
 import {
   getAuthConfig,
   initiateWebOAuth,
@@ -36,8 +37,8 @@ router.post("/exchange-code", exchangeCodeLimiter, exchangeOneTimeCode);
 router.get("/seed/analyst", seedAnalystToken);
 
 // Token management
-router.post("/refresh", authLimiter, refreshToken);
-router.post("/logout", authenticate, logout);
+router.post("/refresh", verifyCsrfToken, authLimiter, refreshToken);
+router.post("/logout", verifyCsrfToken, authenticate, logout);
 
 // Authenticated user info
 router.get("/me", authenticate, getMe);
