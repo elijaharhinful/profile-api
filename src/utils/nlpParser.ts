@@ -16,7 +16,9 @@ function getCountryMap() {
           countryMap[p.country_name.toLowerCase()] = p.country_id;
         }
       }
-      sortedCountryNames = Object.keys(countryMap).sort((a, b) => b.length - a.length);
+      sortedCountryNames = Object.keys(countryMap).sort(
+        (a, b) => b.length - a.length,
+      );
     } catch (e) {
       console.error("Failed to load country map for NLP", e);
       countryMap = {};
@@ -57,8 +59,10 @@ export function parseNaturalLanguageQuery(
   }
 
   // Gender
-  const hasMale = /\bmales?\b/.test(lowerQuery);
-  const hasFemale = /\bfemales?\b/.test(lowerQuery);
+  const hasMale = /\b(?:males?|men|man|boys?|guys?)\b/.test(lowerQuery);
+  const hasFemale = /\b(?:females?|women|woman|girls?|ladies)\b/.test(
+    lowerQuery,
+  );
 
   if (hasMale && hasFemale) {
     matched = true;
@@ -73,8 +77,12 @@ export function parseNaturalLanguageQuery(
   // Country
   const { cmap, names } = getCountryMap();
   for (const countryName of names) {
-    const escapedCountryName = countryName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escapedCountryName}\\b`);
+    const escapedCountryName = countryName.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
+    // Match the country name, optionally followed by common demonym suffixes (n, an, ian)
+    const regex = new RegExp(`\\b${escapedCountryName}(?:n|an|ian)?\\b`);
     if (regex.test(lowerQuery)) {
       filters.country_id = cmap[countryName];
       matched = true;
@@ -83,6 +91,26 @@ export function parseNaturalLanguageQuery(
   }
 
   // Age constraints
+  // e.g. "between ages 20 and 45"
+  const betweenMatch = lowerQuery.match(
+    /\bbetween\s+(?:ages?\s+)?(\d+)\s+and\s+(\d+)\b/,
+  );
+  if (betweenMatch) {
+    filters.min_age = parseInt(betweenMatch[1], 10);
+    filters.max_age = parseInt(betweenMatch[2], 10);
+    matched = true;
+  }
+
+  // e.g. "aged 20-45" or "ages 20 to 45" or "ages 20–45"
+  const rangeMatch = lowerQuery.match(
+    /\b(?:aged?|ages?)\s+(\d+)\s*(?:[-–—]|to)\s*(\d+)\b/,
+  );
+  if (rangeMatch) {
+    filters.min_age = parseInt(rangeMatch[1], 10);
+    filters.max_age = parseInt(rangeMatch[2], 10);
+    matched = true;
+  }
+
   const aboveMatch = lowerQuery.match(/\b(?:above|over)\s+(\d+)\b/);
   if (aboveMatch) {
     filters.min_age = parseInt(aboveMatch[1], 10);
