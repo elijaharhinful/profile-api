@@ -1,8 +1,6 @@
 import rateLimit from "express-rate-limit";
 import { Request } from "express";
 
-// Normalize IPv6-mapped IPv4 addresses (e.g. ::ffff:1.2.3.4 -> 1.2.3.4)
-// and handle proxy forwarded IPs correctly
 function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
   let ip: string;
