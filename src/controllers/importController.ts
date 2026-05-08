@@ -1,13 +1,14 @@
 import { Response } from "express";
 import { parse } from "csv-parse";
-import { Readable } from "stream";
+import fs from "fs";
 import { uuidv7 } from "uuidv7";
 import { prisma } from "../lib/prisma";
 import { cacheFlush } from "../lib/redis";
 import { AuthenticatedRequest } from "../middleware/auth.middleware";
 import { SkipReasons, ValidRow } from "../interfaces/interfaces";
 
-const CHUNK_SIZE = 500; // rows per bulk INSERT
+const CHUNK_SIZE = 500;
+const MAX_ROWS = 500000;
 
 const VALID_GENDERS = new Set(["male", "female"]);
 const VALID_AGE_GROUPS = new Set(["child", "teenager", "adult", "senior"]);
@@ -170,8 +171,8 @@ export async function importProfiles(
   let total_rows = 0;
   const chunk: ValidRow[] = [];
 
-  // Stream the buffer through csv-parse row by row
-  const stream = Readable.from(req.file.buffer);
+  // Stream the file through csv-parse row by row
+  const stream = fs.createReadStream(req.file.path);
   const parser = stream.pipe(
     parse({
       columns: true,
@@ -184,6 +185,18 @@ export async function importProfiles(
   try {
     for await (const record of parser) {
       total_rows++;
+
+      if (total_rows > MAX_ROWS) {
+        res.status(413).json({
+          status: "error",
+          message: `File exceeds maximum limit of ${MAX_ROWS} rows. Partial import completed.`,
+          total_rows: MAX_ROWS,
+          inserted: inserted.count,
+          skipped: MAX_ROWS - inserted.count,
+          reasons: cleanReasons(reasons),
+        });
+        return;
+      }
 
       const row = validateRow(record as Record<string, string>, reasons);
       if (!row) continue;
@@ -200,8 +213,20 @@ export async function importProfiles(
     if (chunk.length > 0) {
       await flushChunk(chunk, inserted, reasons);
     }
+
+    // Invalidate cached profile lists so new data is immediately visible
+    await cacheFlush("profiles:*");
+
+    const skipped = total_rows - inserted.count;
+    res.status(200).json({
+      status: "success",
+      total_rows,
+      inserted: inserted.count,
+      skipped,
+      reasons: cleanReasons(reasons),
+    });
   } catch (err) {
-    // Return a partial result.
+    // Return a partial result if we failed midway
     const skipped = total_rows - inserted.count;
     res.status(200).json({
       status: "partial",
@@ -212,20 +237,12 @@ export async function importProfiles(
       skipped,
       reasons: cleanReasons(reasons),
     });
-    return;
+  } finally {
+    // Always clean up the temporary file
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlink(req.file.path, () => {});
+    }
   }
-
-  // Invalidate cached profile lists so new data is immediately visible
-  await cacheFlush("profiles:*");
-
-  const skipped = total_rows - inserted.count;
-  res.status(200).json({
-    status: "success",
-    total_rows,
-    inserted: inserted.count,
-    skipped,
-    reasons: cleanReasons(reasons),
-  });
 }
 
 // Remove zero-count reason keys to keep the response clean

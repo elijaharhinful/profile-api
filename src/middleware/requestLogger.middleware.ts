@@ -5,12 +5,20 @@ interface AuthenticatedRequest extends Request {
   user?: { id: string };
 }
 
-export function requestLogger(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export function requestLogger(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) {
   const start = Date.now();
 
   res.on("finish", () => {
     const duration_ms = Date.now() - start;
     const user_id = req.user?.id ?? null;
+
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration_ms}ms`,
+    );
 
     prisma.requestLog
       .create({

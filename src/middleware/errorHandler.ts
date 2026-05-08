@@ -8,8 +8,17 @@ export function errorHandler(
 ): void {
   console.error(err);
 
-  if (err.name === "MulterError") {
-    res.status(400).json({ status: "error", message: err.message });
+  if (err.name === "MulterError" || (err as any).code?.startsWith("LIMIT_")) {
+    let message = err.message;
+    const code = (err as any).code;
+
+    if (code === "LIMIT_UNEXPECTED_FILE" || message === "Unexpected field") {
+      message = "You can only upload one file at a time using the 'file' field.";
+    } else if (code === "LIMIT_FILE_SIZE") {
+      message = "File is too large. Maximum size allowed is 50MB.";
+    }
+
+    res.status(400).json({ status: "error", message });
     return;
   }
 

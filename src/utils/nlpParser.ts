@@ -80,7 +80,7 @@ export function parseNaturalLanguageQuery(
     const escapedCountryName = countryName.replace(
       /[.*+?^${}()|[\]\\]/g,
       "\\$&",
-    );
+    ).replace(/[ -]/g, '[ \\-]');
     // Match the country name, optionally followed by common demonym suffixes (n, an, ian)
     const regex = new RegExp(`\\b${escapedCountryName}(?:n|an|ian)?\\b`);
     if (regex.test(lowerQuery)) {
